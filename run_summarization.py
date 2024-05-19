@@ -16,7 +16,7 @@
 """
 Fine-tuning the library models for sequence to sequence.
 """
-# You can also adapt this scrfload_datasetipt on your own sequence to sequence task. Pointers for this are left as comments.
+# You can also adapt this script on your own sequence to sequence task. Pointers for this are left as comments.
 
 import logging
 import os
@@ -51,6 +51,9 @@ from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, is_offline_mode, send_example_telemetry
 from transformers.utils.versions import require_version
 
+# Initialize wandb
+import wandb
+wandb.init(project="my_project_name")  # Replace with your project name
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.41.0.dev0")
@@ -717,6 +720,9 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
+        # Log training metrics to wandb
+        wandb.log(metrics)
+
     # Evaluation
     results = {}
     if training_args.do_eval:
@@ -734,6 +740,9 @@ def main():
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
+        # Log evaluation metrics to wandb
+        wandb.log(metrics)
+
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
@@ -746,6 +755,9 @@ def main():
 
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
+
+        # Log prediction metrics to wandb
+        wandb.log(metrics)
 
         if trainer.is_world_process_zero():
             if training_args.predict_with_generate:
@@ -775,6 +787,9 @@ def main():
         trainer.push_to_hub(**kwargs)
     else:
         trainer.create_model_card(**kwargs)
+
+    # Finish the wandb run
+    wandb.finish()
 
     return results
 
