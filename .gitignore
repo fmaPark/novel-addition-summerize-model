@@ -16,3 +16,5 @@ ipynb_checkpoints
 
 tmp/
 transformer/
+
+wandb/

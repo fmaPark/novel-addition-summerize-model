@@ -22,8 +22,9 @@ import logging
 import os
 import sys
 import warnings
+import json
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 import datasets
 import evaluate
@@ -46,14 +47,13 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments,
     set_seed,
+    TrainerCallback,
+    TrainerState,
+    TrainerControl,
 )
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import check_min_version, is_offline_mode, send_example_telemetry
 from transformers.utils.versions import require_version
-
-# Initialize wandb
-import wandb
-wandb.init(project="my_project_name")  # Replace with your project name
 
 # Will error if the minimal version of Transformers is not installed. Remove at your own risks.
 # check_min_version("4.41.0.dev0")
@@ -679,15 +679,39 @@ def main():
         result["gen_len"] = np.mean(prediction_lens)
         return result
 
-    # Override the decoding parameters of Seq2SeqTrainer
-    training_args.generation_max_length = (
-        training_args.generation_max_length
-        if training_args.generation_max_length is not None
-        else data_args.val_max_target_length
-    )
-    training_args.generation_num_beams = (
-        data_args.num_beams if data_args.num_beams is not None else training_args.generation_num_beams
-    )
+    # Function to calculate accuracy
+    def calculate_accuracy(preds, labels):
+        decoded_preds = tokenizer.batch_decode(preds, skip_special_tokens=True)
+        decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+        correct = 0
+        total = 0
+        for pred, label in zip(decoded_preds, decoded_labels):
+            if pred.strip() == label.strip():
+                correct += 1
+            total += 1
+        return correct / total if total > 0 else 0
+
+    # Custom callback to save training loss and accuracy
+    class SaveTrainingLossCallback(TrainerCallback):
+        def __init__(self):
+            self.training_metrics = []
+
+        def on_log(self, args: Seq2SeqTrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+            if state.global_step % 100 == 0:
+                loss = state.log_history[-1]['loss']
+                # Calculate accuracy on a small batch of data
+                inputs = [state.log_history[-1]['inputs'] for _ in range(10)]  # Example inputs, replace with real ones
+                labels = [state.log_history[-1]['labels'] for _ in range(10)]  # Example labels, replace with real ones
+                inputs = tokenizer(inputs, return_tensors="pt", padding=True, truncation=True, max_length=data_args.max_source_length).input_ids
+                labels = tokenizer(labels, return_tensors="pt", padding=True, truncation=True, max_length=data_args.max_target_length).input_ids
+                outputs = model.generate(inputs, max_length=data_args.max_target_length)
+                accuracy = calculate_accuracy(outputs, labels)
+                self.training_metrics.append({"step": state.global_step, "loss": loss, "accuracy": accuracy})
+                # Save the training metrics to a file
+                with open(os.path.join(args.output_dir, "training_metrics.json"), "w") as f:
+                    json.dump(self.training_metrics, f)
+
+    save_training_loss_callback = SaveTrainingLossCallback()
 
     # Initialize our Trainer
     trainer = Seq2SeqTrainer(
@@ -698,6 +722,7 @@ def main():
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics if training_args.predict_with_generate else None,
+        callbacks=[save_training_loss_callback],  # Add the custom callback here
     )
 
     # Training
@@ -720,9 +745,6 @@ def main():
         trainer.save_metrics("train", metrics)
         trainer.save_state()
 
-        # Log training metrics to wandb
-        wandb.log(metrics)
-
     # Evaluation
     results = {}
     if training_args.do_eval:
@@ -740,9 +762,6 @@ def main():
         trainer.log_metrics("eval", metrics)
         trainer.save_metrics("eval", metrics)
 
-        # Log evaluation metrics to wandb
-        wandb.log(metrics)
-
     if training_args.do_predict:
         logger.info("*** Predict ***")
 
@@ -755,9 +774,6 @@ def main():
 
         trainer.log_metrics("predict", metrics)
         trainer.save_metrics("predict", metrics)
-
-        # Log prediction metrics to wandb
-        wandb.log(metrics)
 
         if trainer.is_world_process_zero():
             if training_args.predict_with_generate:
@@ -787,9 +803,6 @@ def main():
         trainer.push_to_hub(**kwargs)
     else:
         trainer.create_model_card(**kwargs)
-
-    # Finish the wandb run
-    wandb.finish()
 
     return results
 
