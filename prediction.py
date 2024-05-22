@@ -2,7 +2,7 @@ import torch
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 
 # 학습된 모델 경로
-model_path = "./tmp/240516_200_20_16_16_100_1"
+model_path = "./tmp/240521_500_50_8_8_100_1"
 
 # 토크나이저 및 모델 로드
 tokenizer = T5Tokenizer.from_pretrained(model_path, legacy=False)

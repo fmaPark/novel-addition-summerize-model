@@ -693,23 +693,25 @@ def main():
     class SaveTrainingMetricsCallback(TrainerCallback):
         def __init__(self):
             self.training_metrics = []
+            self.validation_metrics = []
 
         def on_log(self, args: Seq2SeqTrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
             if state.global_step % 100 == 0 and 'loss' in state.log_history[-1]:
-                inputs = kwargs.get('inputs')
-                labels = kwargs.get('labels')
-                predictions = kwargs.get('predictions')
-                accuracy = np.mean(np.array(predictions) == np.array(labels)) if predictions is not None and labels is not None else None
-
                 log_entry = {"step": state.global_step, "loss": state.log_history[-1]['loss']}
-                if accuracy is not None:
-                    log_entry["accuracy"] = accuracy
-
                 self.training_metrics.append(log_entry)
-
+                
                 # Save the training metrics to a file
                 with open(os.path.join(args.output_dir, "training_metrics.json"), "w") as f:
                     json.dump(self.training_metrics, f)
+        
+        def on_evaluate(self, args: Seq2SeqTrainingArguments, state: TrainerState, control: TrainerControl, metrics, **kwargs):
+            if 'eval_loss' in metrics:
+                log_entry = {"step": state.global_step, "eval_loss": metrics['eval_loss']}
+                self.validation_metrics.append(log_entry)
+
+                # Save the validation metrics to a file
+                with open(os.path.join(args.output_dir, "validation_metrics.json"), "w") as f:
+                    json.dump(self.validation_metrics, f)
 
     save_training_metrics_callback = SaveTrainingMetricsCallback()
 
