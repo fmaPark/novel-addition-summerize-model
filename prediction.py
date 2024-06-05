@@ -3,7 +3,7 @@ import torch
 from transformers import T5ForConditionalGeneration, T5Tokenizer
 
 # 학습된 모델 경로
-model_path = "./tmp/240521_500_50_8_8_100_1"
+model_path = "app/model/summary_model_500_50_8_8_200_1"
 
 # 토크나이저 및 모델 로드
 tokenizer = T5Tokenizer.from_pretrained(model_path, legacy=False)
@@ -40,7 +40,7 @@ for index, row in data.iterrows():
 data['predicted_summary'] = summaries
 
 # 결과를 새로운 CSV 파일로 저장
-output_file = './tmp/240521_500_50_8_8_100_1/test_data_with_summaries.csv'
+output_file = 'app/model/summary_model_500_50_8_8_200_1/test_data_with_summaries.csv'
 data.to_csv(output_file, index=False)
 
 print(f"Summaries saved to {output_file}")
