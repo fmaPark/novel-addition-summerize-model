@@ -21,3 +21,5 @@ tmp/
 transformer/
 
 wandb/
+
+app/model
