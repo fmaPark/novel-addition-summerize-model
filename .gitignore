@@ -14,6 +14,9 @@
 **/._.ipynb_checkpoints
 **/.lock.test_data.csv#
 
+__pycache__
+**/__pycache__
+
 tmp/
 transformer/
 
