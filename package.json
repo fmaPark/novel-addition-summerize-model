@@ -1,0 +1,9 @@
+{
+  "dependencies": {
+    "draft-js": "^0.11.7",
+    "react-draft-wysiwyg": "^1.15.0"
+  },
+  "devDependencies": {
+    "@types/react-draft-wysiwyg": "^1.13.8"
+  }
+}
