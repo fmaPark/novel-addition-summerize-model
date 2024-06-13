@@ -17,6 +17,7 @@ interface LogData {
   title : string;
   subtitle : string;
   content: string;
+  summary : string;
   timestamp: string;
 }
 
@@ -47,7 +48,6 @@ const App: React.FC = () => {
   const [openNowVersionIndex, setOpenNowVersionIndex] = useState<number | null>(0);
 
   const [message, setMessage] = useState('');
-  // const [context, setContext] = useState(null);
   const [nowVersion, setNowVersion] = useState<LogData | null>(null);
   const [versions, setVersions] = useState<LogData[]>([]);
   const [versionIndex, setVersionIndex] = useState<number>(0);
@@ -100,6 +100,39 @@ const App: React.FC = () => {
     }
   };
 
+  const handleNewPostClick = async () => {
+    // 제목, 소제목, 내용 란 초기화
+    if (titleInputRef.current) titleInputRef.current.value = '';
+    if (subtitleInputRef.current) subtitleInputRef.current.value = '';
+    if (contextInputRef.current) contextInputRef.current.value = '';
+  
+    // nowVersion 초기화
+    setNowVersion(null);
+  
+    // VersionItem 초기화
+    setVersionIndex(0); // 선택된 버전 인덱스를 초기화
+    setVersions([])
+
+    // data.json 파일을 빈 배열로 초기화
+    try {
+      const response = await fetch('http://localhost:8000/reset/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const result = await response.json();
+      if (response.ok) {
+        console.log(result.message); // 성공 메시지 출력
+      } else {
+        console.error(result.detail); // 에러 메시지 출력
+      }
+    } catch (error) {
+      console.error('Error resetting data:', error);
+    }
+  };
+
   const handleVersionLog = async () => {
     if (contextInputRef.current && titleInputRef.current && subtitleInputRef.current) {
       const title = titleInputRef.current.value;
@@ -109,6 +142,7 @@ const App: React.FC = () => {
 
       let original = '';
       let added = '';
+      let predictedText = '';
 
       if (nowVersion) {
         const nowContent = nowVersion.content;
@@ -130,67 +164,77 @@ const App: React.FC = () => {
         } else {
           original = originalSentences.join('.') + '.';
         }
-      }
 
-      // Prepare data for the prediction request
-      const versionModelData: VersionModelData = { origin: original, added };
-
-      try {
-        // Send data to the predict endpoint
-        const predictionResponse = await fetch('http://localhost:8000/predict/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(versionModelData)
-        });
-
-        if (!predictionResponse.ok) {
-          throw new Error(`HTTP error! status: ${predictionResponse.status}`);
-        }
-
-        const predictedText = await predictionResponse.json();
-
-        // Prepare LogData with the predicted details
-        const data: LogData = {
-          index: versionIndex + 1,
-          title,
-          subtitle,
-          content: predictedText,
-          timestamp
-        };
-
-        // Add the new version to the versions array
-        setVersions([...versions, data]);
+        // Prepare data for the prediction request
+        const versionModelData: VersionModelData = { origin: original, added };
 
         try {
-          const response = await fetch('http://localhost:8000/log/', {
+          // Send data to the predict endpoint
+          const predictionResponse = await fetch('http://localhost:8000/predict/', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'
             },
-            body: JSON.stringify(data)
+            body: JSON.stringify(versionModelData)
           });
 
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+          console.log('versionModelData: ', versionModelData)
+
+          if (!predictionResponse.ok) {
+            throw new Error(`HTTP error! status: ${predictionResponse.status}`);
           }
 
-          const result = await response.json();
-          setMessage(result.message);
-
-          // After adding new version, fetch and update versions
-          await fetchVersions();
+          predictedText = await predictionResponse.json();
         } catch (error) {
           console.error('Error:', error);
           setMessage(`Error: ${error}`);
+          return;
         }
+      } else {
+        original = content;
+        added = '최초 버전';
+        predictedText = added;
+      }
+
+      // Prepare LogData with the predicted details
+      const data: LogData = {
+        index: versionIndex + 1,
+        title,
+        subtitle,
+        content: content,
+        summary : predictedText,
+        timestamp
+      };
+
+      // Add the new version to the versions array
+      setVersions([...versions, data]);
+
+      console.log('data: ', data)
+      try {
+        const response = await fetch('http://localhost:8000/log/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(data)
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        setMessage(result.message);
+
+        // After adding new version, fetch and update versions
+        await fetchVersions();
       } catch (error) {
         console.error('Error:', error);
         setMessage(`Error: ${error}`);
       }
     }
   };
+  
 
   const handleRollback = () => {
     if (openIndex !== null && openIndex !== -1) {
@@ -217,26 +261,26 @@ const App: React.FC = () => {
     <div className="app-container">
       <aside className={`sidebar left-sidebar ${isLeftSidebarOpen ? '' : 'collapsed'}`}>
         <div className="menu">
-          <button className="new-post-button">새 글 쓰기</button>
-          <div className="menu-item">
+          <button className="new-post-button" onClick={handleNewPostClick}>새 글 쓰기</button>
+          {/* <div className="menu-item">
             <span className="icon">⭐</span>
             <span>중요 글</span>
           </div>
           <div className="menu-item">
             <span className="icon">🔍</span>
             <span>최근 항목</span>
-          </div>
+          </div> */}
           <hr />
           <nav>
             <ul className="folder-list">
-              <li>
+              {/* <li>
                 <span className="folder-icon">▶</span>
                 <span>폴더1</span>
               </li>
               <ul className="file-list">
                 <li>글1</li>
                 <li>글2</li>
-              </ul>
+              </ul> */}
             </ul>
           </nav>
         </div>
@@ -244,18 +288,18 @@ const App: React.FC = () => {
       
       <main className="main-content">
         <header className="header">
-          <div className="header-top">
+          {/* <div className="header-top">
             <button className="sidebar-toggle left" onClick={toggleLeftSidebar}>&#9776;</button>
             <input type="text" placeholder="글에서 검색" className="search-input" />
             <button className="search-button">🔍</button>
             <button className="sidebar-toggle right" onClick={toggleRightSidebar}>&#9776;</button>
-          </div>
+          </div> */}
           <div className="header-bottom">
-            <button>저장</button>
+            {/* <button>저장</button> */}
             <button onClick={handleVersionLog}>버전 기록</button>
             <button onClick={handleRollback}>되돌리기</button>
-            <button>삭제</button>
-            <button>폴더 이동</button>
+            {/* <button>삭제</button>
+            <button>폴더 이동</button> */}
           </div>
         </header>
         
@@ -276,7 +320,7 @@ const App: React.FC = () => {
         {nowVersion && (
           <VersionItem
             key={nowVersion.index}
-            version={{ date: nowVersion.timestamp, details: nowVersion.content }}
+            version={{ date: nowVersion.timestamp, details: nowVersion.summary }}
             isOpen={openNowVersionIndex === nowVersion.index}
             onClick={() => handleNowVersionClick(nowVersion.index)}
           />
@@ -285,7 +329,7 @@ const App: React.FC = () => {
         {versions.map((version, index) => (
           <VersionItem
             key={index}
-            version={{ date: version.timestamp, details: version.content }}
+            version={{ date: version.timestamp, details: version.summary }}
             isOpen={openIndex === index}
             onClick={() => handleClick(index)}
           />

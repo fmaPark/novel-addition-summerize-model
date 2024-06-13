@@ -22,6 +22,7 @@ class LogData(BaseModel):
     title : str
     subtitle : str
     content: str
+    summary : str
     timestamp: str
 
 
@@ -29,11 +30,14 @@ class LogData(BaseModel):
 async def log_data(log: LogData):
     log_entry = log.dict()
     try:
+        data = []
         if os.path.exists("data.json"):
             with open("data.json", "r") as file:
-                data = json.load(file)
-        else:
-            data = []
+                try:
+                    data = json.load(file)
+                except json.JSONDecodeError:
+                    # 파일이 비어있거나 JSON 형식이 잘못된 경우 초기화
+                    data = []
 
         data.append(log_entry)
 
@@ -47,16 +51,26 @@ async def log_data(log: LogData):
 @app.get("/logs/")
 async def get_logs():
     try:
+        data = []
         if os.path.exists("data.json"):
             with open("data.json", "r") as file:
-                data = json.load(file)
-        else:
-            data = []
+                try:
+                    data = json.load(file)
+                except json.JSONDecodeError:
+                    # 파일이 비어있거나 JSON 형식이 잘못된 경우 빈 배열 반환
+                    data = []
         return data
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-    
 
+@app.post("/reset/")
+async def reset_data():
+    try:
+        with open("data.json", "w") as file:
+            json.dump([], file, indent=4)  # 빈 배열로 초기화
+        return {"message": "Data reset successfully"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/predict/")
 async def get_prediction(data: TextData):
