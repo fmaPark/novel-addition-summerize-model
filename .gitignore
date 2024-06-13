@@ -23,3 +23,5 @@ transformer/
 wandb/
 
 app/model
+node_modules
+**/node_modules
